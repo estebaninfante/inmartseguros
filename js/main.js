@@ -199,7 +199,7 @@
   var tipo = document.getElementById('cf-tipo');
   var msg = document.getElementById('cf-msg');
   var WA = '573103082226';
-  var EMAIL = 'inmartseguros@gmail.com';
+  var EMAIL = 'gerencia@inmartseguros.com';
 
   function compose() {
     var lines = ['Hola, soy ' + nombre.value.trim() + ', ' + tipo.value + '.'];
