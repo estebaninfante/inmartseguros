@@ -328,13 +328,13 @@
   });
 })();
 
-/* ===== carruseles móviles: auto-desplazamiento infinito + botones prev/next.
-   En desktop la pista es una grilla sin desborde: el motor no arranca. ===== */
+/* ===== carruseles móviles: fila deslizable con snap + indicador de swipe.
+   Sin autodesplazamiento (evita el lag en táctil): el usuario desliza a mano.
+   En desktop la pista es una grilla sin desborde: el indicador no aparece. ===== */
 (function () {
   var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   var mql = window.matchMedia('(max-width: 720px)');
   var sels = ['.sec-grid-sectores', '.prod-grid'];
-  var SPEED = 30; /* px por segundo */
   var CHEV = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
 
   sels.forEach(function (sel) {
@@ -344,6 +344,7 @@
       sc.parentNode.insertBefore(wrap, sc);
       wrap.appendChild(sc);
 
+      /* botones prev/next: adelantan o retroceden manualmente (sin auto-play) */
       [['prev', 'Anterior', -1], ['next', 'Siguiente', 1]].forEach(function (cfg) {
         var b = document.createElement('button');
         b.type = 'button';
@@ -351,113 +352,60 @@
         b.setAttribute('aria-label', cfg[1] + ' tarjeta');
         b.innerHTML = CHEV + '<path d="' + (cfg[2] < 0 ? 'M15 18l-6-6 6-6' : 'M9 6l6 6-6 6') + '"/></svg>';
         b.addEventListener('click', function () {
-          pause(2200);
           sc.scrollBy({ left: cfg[2] * sc.clientWidth * .8, behavior: reduced ? 'auto' : 'smooth' });
         });
         wrap.appendChild(b);
       });
-      var prevBtn = wrap.querySelector('.car-btn.prev');
-      var nextBtn = wrap.querySelector('.car-btn.next');
 
-      /* ---- motor de bucle infinito ---- */
-      var unit = 0;      /* ancho del set original: salto invisible de vuelta */
-      var raf = null;
-      var last = 0;
-      var running = false;
-      var resumeT = null;
+      /* indicador de swipe: grupos de puntos que reflejan la posición de la fila */
+      var dots = document.createElement('div');
+      dots.className = 'car-dots';
+      wrap.appendChild(dots);
+      var dotEls = [];
 
-      function build() {
-        sc.querySelectorAll('[data-clone]').forEach(function (n) { n.remove(); });
-        unit = 0;
-        if (reduced || !mql.matches) { return false; }
-        if (sc.scrollWidth <= sc.clientWidth + 4) { return false; } /* sin desborde: no hay carrusel */
-        var kids = Array.prototype.slice.call(sc.children);
-        var firstL = kids[0].offsetLeft;
-        kids.forEach(function (n) {
-          var c = n.cloneNode(true);
-          c.setAttribute('data-clone', '1');
-          c.setAttribute('aria-hidden', 'true');
-          if (c.matches('a')) { c.setAttribute('tabindex', '-1'); }
-          sc.appendChild(c);
-        });
-        /* salto invisible: ancho exacto de un set completo (incluye gap) */
-        unit = sc.children[kids.length].offsetLeft - firstL;
-        return true;
-      }
-
-      function edge() {
-        var max = sc.scrollWidth - sc.clientWidth - 1;
-        var loop = unit > 0;
-        prevBtn.classList.toggle('hide', !loop && sc.scrollLeft <= 1);
-        nextBtn.classList.toggle('hide', !loop && sc.scrollLeft >= max);
-      }
-
-      function step(ts) {
-        if (!running) { return; }
-        if (last) {
-          sc.scrollLeft += (ts - last) / 1000 * SPEED;
-          if (unit && sc.scrollLeft >= unit) { sc.scrollLeft -= unit; }
-          edge();
+      function sync() {
+        var over = mql.matches && sc.scrollWidth > sc.clientWidth + 4;
+        dots.classList.toggle('on', over);
+        if (!over) { dots.innerHTML = ''; dotEls = []; return; }
+        var want = Math.ceil(sc.scrollWidth / sc.clientWidth);
+        if (want !== dotEls.length) {
+          dots.innerHTML = '';
+          dotEls = [];
+          for (var i = 0; i < want; i++) {
+            (function (i) {
+              var d = document.createElement('button');
+              d.type = 'button';
+              d.className = 'car-dot';
+              d.setAttribute('aria-label', 'Ir al panel ' + (i + 1));
+              d.addEventListener('click', function () {
+                sc.scrollTo({ left: i * sc.clientWidth, behavior: reduced ? 'auto' : 'smooth' });
+              });
+              dots.appendChild(d);
+              dotEls.push(d);
+            })(i);
+          }
         }
-        last = ts;
-        raf = requestAnimationFrame(step);
+        var cur = Math.round(sc.scrollLeft / sc.clientWidth);
+        cur = Math.max(0, Math.min(dotEls.length - 1, cur));
+        dotEls.forEach(function (d, k) { d.classList.toggle('on', k === cur); });
       }
 
-      function start() {
-        if (running || reduced || !mql.matches || !unit) { return; }
-        running = true;
-        last = 0;
-        sc.classList.add('no-snap');
-        raf = requestAnimationFrame(step);
-      }
+      sc.addEventListener('scroll', sync, { passive: true });
 
-      function stop() {
-        running = false;
-        if (raf) { cancelAnimationFrame(raf); raf = null; }
-        sc.classList.remove('no-snap');
-      }
-
-      function pause(delay) {
-        stop();
-        clearTimeout(resumeT);
-        resumeT = setTimeout(start, delay || 2600);
-      }
-
-      function setup() {
-        stop();
-        clearTimeout(resumeT);
-        sc.scrollLeft = 0;
-        var ok = build();
-        edge();
-        if (ok) { start(); }
-      }
-
-      /* interacción del usuario: pausa y reanuda */
-      ['touchstart', 'pointerdown', 'wheel'].forEach(function (ev) {
-        sc.addEventListener(ev, function () { pause(2800); }, { passive: true });
-      });
-      sc.addEventListener('mouseenter', function () { stop(); });
-      sc.addEventListener('mouseleave', function () { start(); });
-
-      sc.addEventListener('scroll', edge, { passive: true });
-
-      /* visibilidad: (re)construir al entrar; detener al salir.
-         Cubre paneles de tabs ocultos (display:none → scrollWidth 0). */
+      /* visibilidad: medir cuando la pista es visible (paneles de tabs ocultos
+         tienen scrollWidth 0, así que se re-sincroniza al mostrarse) */
       if ('IntersectionObserver' in window) {
         new IntersectionObserver(function (es) {
-          es.forEach(function (e) {
-            if (e.isIntersecting) { setup(); } else { stop(); }
-          });
+          es.forEach(function (e) { if (e.isIntersecting) { sync(); } });
         }, { threshold: .05 }).observe(sc);
-      } else {
-        setup();
       }
+      sync();
 
-      /* cambio desktop↔móvil: reconstruir */
+      /* cambio desktop↔móvil: re-medir */
       var rT;
       window.addEventListener('resize', function () {
         clearTimeout(rT);
-        rT = setTimeout(setup, 180);
+        rT = setTimeout(sync, 180);
       });
     });
   });

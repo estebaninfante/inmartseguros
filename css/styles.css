@@ -896,9 +896,19 @@
        Cada tarjeta lleva a Contacto con el mensaje preconfigurado ---------- */
     /* El margen superior de esta sección se reduce: la frase gancho
        no debe quedar desplazada por el respiro por defecto */
+    /* Servicios ocupa todo el viewport: nunca comparte pantalla con la sección
+       siguiente (Contacto). El wrap se centra verticalmente dentro de la sección */
     .section#servicios {
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex;
+      align-items: center;
       padding-top: clamp(2rem, 3.5vw, 3rem);
       padding-bottom: clamp(1.25rem, 2.5vw, 2rem)
+    }
+
+    .section#servicios .wrap {
+      width: 100%
     }
 
     /* Servicios: encabezado y control centrados (como la referencia) */
@@ -1126,6 +1136,18 @@
       border-radius: 999px;
       padding: .8rem 1.4rem;
       font-size: .98rem
+    }
+
+    /* Móvil: el botón pasa a su propia fila bajo el input para no tapar el placeholder */
+    @media (max-width:720px) {
+      .search-bar {
+        flex-wrap: wrap
+      }
+
+      .search-btn {
+        flex: 1 1 100%;
+        justify-content: center
+      }
     }
 
     .search-chips {
@@ -2623,11 +2645,6 @@
         scroll-snap-align: center
       }
 
-      /* durante el auto-desplazamiento el snap se retira (js alterna .no-snap) */
-      .sec-grid-sectores.no-snap,
-      .prod-grid.no-snap {
-        scroll-snap-type: none
-      }
     }
 
     /* ---------- carruseles: botones visibles que invitan a deslizar ---------- */
@@ -2684,4 +2701,38 @@
     /* Aptdo. servicios: sin flechas prev/next en móvil */
     #servicios .car-btn {
       display: none
+    }
+
+    /* ---------- indicador de swipe (móvil): puntos que señalan la posición ---------- */
+    .car-dots {
+      display: none;
+      justify-content: center;
+      gap: .45rem;
+      margin-top: .85rem
+    }
+
+    .car-dot {
+      width: .5rem;
+      height: .5rem;
+      padding: 0;
+      border: 0;
+      border-radius: 50%;
+      background: var(--line-light);
+      cursor: pointer;
+      transition: background .2s var(--ease), transform .2s var(--ease)
+    }
+
+    .car-dot.on {
+      background: var(--navy-700);
+      transform: scale(1.15)
+    }
+
+    @media (max-width:720px) {
+      .car-dots {
+        display: flex
+      }
+
+      .car-dots:not(.on) {
+        display: none
+      }
     }
